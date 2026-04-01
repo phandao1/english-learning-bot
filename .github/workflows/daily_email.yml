@@ -2,11 +2,11 @@ name: Daily English Email Automation
 
 on:
   schedule:
-    # Chạy tự động lúc 23:00 UTC (tương đương 06:00 sáng giờ Việt Nam) mỗi ngày
-    - cron: '0 23 * * *'
+    # Chạy tự động lúc 00:30 UTC (tương đương 07:30 sáng giờ Việt Nam) mỗi ngày
+    - cron: '30 0 * * *'
     
-    # Chạy tự động lúc 10:00 UTC (tương đương 17:00 chiều giờ Việt Nam) mỗi ngày
-    - cron: '0 10 * * *'
+    # Chạy tự động lúc 12:30 UTC (tương đương 19:30 tối giờ Việt Nam) mỗi ngày
+    - cron: '30 12 * * *'
 
   # Cho phép kích hoạt chạy bằng tay (Manual trigger) trên giao diện Github
   workflow_dispatch:
@@ -30,15 +30,24 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run the English Learning Crawler & Sender
+      - name: Run the Morning Email
+        if: github.event.schedule == '30 0 * * *' || github.event_name == 'workflow_dispatch'
         env:
-          # Các biến môi trường này hệ thống sẽ tự đọc từ mục 'Secrets' của bạn
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
           USE_AI_SUMMARY: "True"
-          # Nếu có key Gemini, hệ thống sẽ chèn tự động, nếu không thì script có sẵn offline translator
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
         run: |
-          # Chạy lệnh gửi ngay (không chạy qua scheduler chặn tiến trình)
-          python main.py --send-now
+          python main.py --morning
+
+      - name: Run the Evening Email
+        if: github.event.schedule == '30 12 * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          USE_AI_SUMMARY: "True"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
+        run: |
+          python main.py --evening

@@ -25,9 +25,10 @@ USE_AI_SUMMARY = bool(GEMINI_API_KEY)
 # ──────────────────────────────────────────────
 # Schedule Configuration
 # ──────────────────────────────────────────────
-MORNING_SEND_HOUR = int(os.getenv("MORNING_SEND_HOUR", "6"))
+MORNING_SEND_HOUR = int(os.getenv("MORNING_SEND_HOUR", "7"))
 MORNING_SEND_MINUTE = int(os.getenv("MORNING_SEND_MINUTE", "30"))
-EVENING_SEND_HOUR = int(os.getenv("EVENING_SEND_HOUR", "17"))
+
+EVENING_SEND_HOUR = int(os.getenv("EVENING_SEND_HOUR", "19"))
 EVENING_SEND_MINUTE = int(os.getenv("EVENING_SEND_MINUTE", "30"))
 TIMEZONE = os.getenv("TIMEZONE", "Asia/Ho_Chi_Minh")
 
