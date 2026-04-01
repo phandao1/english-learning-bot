@@ -12,6 +12,12 @@ import feedparser
 import requests
 from bs4 import BeautifulSoup
 
+try:
+    import trafilatura
+    HAS_TRAFILATURA = True
+except ImportError:
+    HAS_TRAFILATURA = False
+
 from config import GARMENT_FEEDS, GENERAL_ENGLISH_FEEDS, ARTICLES_PER_CATEGORY
 
 logger = logging.getLogger(__name__)
@@ -28,59 +34,101 @@ HEADERS = {
     )
 }
 
+# Number of candidates to fetch full text for before final selection
+_CANDIDATES_PER_CATEGORY = 8
+
+
 def calculate_article_score(article: 'Article') -> float:
     """
     Evaluate and score an article based on:
-    1. Vocabulary Difficulty (Most Important): Penalizes overly complex text.
-    2. Relevance: Rewards garment/textile keywords if category is garment.
-    3. Date: Rewards newer articles.
+    1. Content quality: Reject junk/promotional articles
+    2. Vocabulary Difficulty: Prefer B1-B2 level (intermediate)
+    3. Relevance: Reward garment/textile keywords if category is garment
+    4. Date: Reward newer articles
+    5. Full text quality: Reward articles with substantial readable content
     """
     score = 0.0
-    text = f"{article.title} {article.summary}".lower()
+    # Use full_text for scoring when available, fall back to summary
+    full = getattr(article, 'full_text', '') or ''
+    text = f"{article.title} {article.summary} {full}".lower()
     words = re.findall(r"\b[a-z]{2,}\b", text)
-    
+
     if not words:
         return -1000.0
 
+    # 0. Content Quality Filter - reject junk articles
+    junk_patterns = [
+        r"lessons?\.com", r"free.*materials", r"eslholiday",
+        r"famouspeople", r"click here", r"subscribe",
+        r"buy now", r"sign up", r"download free",
+        r"thousands of free", r"all my si",
+        r"cookie", r"privacy policy", r"terms of service",
+    ]
+    for pattern in junk_patterns:
+        if re.search(pattern, text):
+            return -1000.0
+
+    # Reject very short content (likely broken scrape or paywall)
+    content_len = len(full) if full else len(article.summary)
+    if content_len < 60:
+        score -= 50
+
     # 1. Date Score (Max 10 points)
     if article.published:
-        # Avoid timezone-aware vs naive issues by stripping tzinfo if any
         pub_date = article.published.replace(tzinfo=None)
         days_old = (datetime.now().replace(tzinfo=None) - pub_date).days
         date_score = max(0, 10 - max(0, days_old))
         score += date_score
 
-    # 2. Relevance Score (Garment Industry)
+    # 2. Relevance Score
     if article.category == "garment_industry":
-        garment_keywords = [
-            "textile", "apparel", "garment", "fabric", "cotton", "yarn", 
-            "sewing", "fashion", "clothing", "manufacturing", "supply", 
-            "retail", "sustainability", "woven", "knit", "denim", "factory",
-            "machinery", "thread", "stitching", "production"
+        core_keywords = [
+            "textile", "apparel", "garment", "fabric", "cotton", "yarn",
+            "sewing", "clothing", "manufacturing", "supply chain",
+            "sustainability", "woven", "knit", "denim", "factory",
+            "thread", "stitching", "production", "quality control",
+            "pattern", "cutting", "dyeing", "finishing", "export",
+            "import", "order", "buyer", "supplier", "sample",
+            "inspection", "compliance", "worker", "labor",
+            "material", "polyester", "nylon", "silk", "wool",
         ]
-        relevance = sum(1 for kw in garment_keywords if kw in text)
-        score += relevance * 3  # 3 points per keyword match
+        relevance = sum(1 for kw in core_keywords if kw in text)
+        score += relevance * 3
     else:
-        # General English: slight reward for daily life / communication words
-        general_keywords = ["speak", "learn", "study", "everyday", "life", "world", "people", "news", "health", "work"]
+        general_keywords = [
+            "speak", "learn", "study", "everyday", "life", "world",
+            "people", "news", "health", "work", "practice", "read",
+            "listen", "conversation", "communicate", "understand",
+            "environment", "community", "technology", "science",
+        ]
         relevance = sum(1 for kw in general_keywords if kw in text)
-        score += relevance * 1
+        score += relevance * 2
 
     # 3. Vocabulary Difficulty (CRITICAL)
-    # Calculate ratio of "long" words (>= 9 characters)
-    # A very high ratio means the text is too academic/difficult
     long_words = [w for w in words if len(w) >= 9]
     long_word_ratio = len(long_words) / len(words)
-    
-    if long_word_ratio > 0.35:
-        score -= 30  # EXTREMELY difficult vocabulary (academic/legal)
-    elif long_word_ratio > 0.25:
-        score -= 15  # Too difficult for general learning
-    elif long_word_ratio < 0.05:
-        score -= 5   # Too simple (kindergarten level)
+
+    if long_word_ratio > 0.30:
+        score -= 30  # Too academic
+    elif long_word_ratio > 0.20:
+        score -= 10
+    elif long_word_ratio < 0.03:
+        score -= 5   # Too simple
     else:
-        score += 20  # Perfect "Goldilocks" difficulty (0.05 - 0.25)
-        
+        score += 25  # B1-B2 sweet spot
+
+    # 4. Content richness - reward articles with good full text
+    if full:
+        word_count = len(full.split())
+        if 200 <= word_count <= 1500:
+            score += 20  # Ideal reading length
+        elif word_count > 1500:
+            score += 10  # Long but still OK
+        elif word_count < 100:
+            score -= 15  # Scrape probably failed / paywall
+    else:
+        score -= 10  # No full text available
+
     return score
 
 
@@ -116,23 +164,38 @@ class Article:
         return f"Article(title='{self.title[:50]}...', source='{self.source_name}')"
 
 def fetch_full_text(url: str) -> str:
-    """Scrape the main content of an article page."""
+    """Scrape the main article text using trafilatura (accurate) or BeautifulSoup (fallback)."""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=10)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.content, "lxml")
-        
-        # Remove noisy elements
+        downloaded = requests.get(url, headers=HEADERS, timeout=12)
+        downloaded.raise_for_status()
+        html = downloaded.text
+    except Exception as e:
+        logger.warning(f"Could not download {url}: {e}")
+        return ""
+
+    # Method 1: trafilatura - much better at extracting article body
+    if HAS_TRAFILATURA:
+        try:
+            text = trafilatura.extract(
+                html,
+                include_comments=False,
+                include_tables=False,
+                no_fallback=False,
+            )
+            if text and len(text) > 200:
+                return text
+        except Exception:
+            pass
+
+    # Method 2: BeautifulSoup fallback
+    try:
+        soup = BeautifulSoup(html, "lxml")
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "form"]):
             tag.decompose()
-            
-        # Extract all paragraph texts
         paragraphs = [p.get_text(strip=True) for p in soup.find_all("p")]
-        # Filter very short paragraphs (likely UI elements)
         paragraphs = [p for p in paragraphs if len(p) > 50]
-        
         full_text = " ".join(paragraphs)
-        if len(full_text) > 300:
+        if len(full_text) > 200:
             return full_text
     except Exception as e:
         logger.warning(f"Could not scrape full text for {url}: {e}")
@@ -143,6 +206,9 @@ def clean_html(raw_html: str) -> str:
     """Remove HTML tags and clean up text."""
     if not raw_html:
         return ""
+    # Avoid BeautifulSoup warning when input doesn't look like HTML
+    if "<" not in raw_html:
+        return re.sub(r"\s+", " ", raw_html).strip()
     soup = BeautifulSoup(raw_html, "lxml")
     text = soup.get_text(separator=" ", strip=True)
     # Remove extra whitespace
@@ -253,6 +319,16 @@ def fetch_feed(feed_config: dict) -> list[Article]:
             image_url = extract_image_url(entry)
 
             if title and link:
+                # Filter out junk/promotional entries
+                combined = f"{title} {summary}".lower()
+                junk_indicators = [
+                    "lessons.com", "eslholiday", "famouspeople",
+                    "freeeslmaterials", "click here to",
+                    "thousands of free lessons",
+                ]
+                if any(j in combined for j in junk_indicators):
+                    continue
+
                 article = Article(
                     title=title,
                     link=link,
@@ -270,6 +346,40 @@ def fetch_feed(feed_config: dict) -> list[Article]:
 
     logger.info(f"✅ Got {len(articles)} articles from {name}")
     return articles
+
+
+def _select_best_articles(articles: list['Article'], count: int) -> list['Article']:
+    """
+    Smart article selection:
+    1. Quick pre-filter on title+summary (reject obvious junk)
+    2. Pick top candidates and fetch their full text
+    3. Re-score with full text for accurate ranking
+    4. Return the best ones
+    """
+    if not articles:
+        return []
+
+    # Step 1: Quick score on title+summary only → pick top candidates
+    articles.sort(key=calculate_article_score, reverse=True)
+    candidates = [a for a in articles if calculate_article_score(a) > -500]
+    candidates = candidates[:_CANDIDATES_PER_CATEGORY]
+
+    if not candidates:
+        return []
+
+    # Step 2: Fetch full text for candidates
+    logger.info(f"📥 Fetching full text for {len(candidates)} candidate articles...")
+    for a in candidates:
+        a.full_text = fetch_full_text(a.link)
+
+    # Step 3: Re-score with full text and pick the best
+    candidates.sort(key=calculate_article_score, reverse=True)
+    selected = candidates[:count]
+
+    for a in selected:
+        logger.info(f"  ✅ Selected: {a.title[:60]}... (score: {calculate_article_score(a):.0f})")
+
+    return selected
 
 
 def fetch_articles(
@@ -295,13 +405,7 @@ def fetch_articles(
             articles = fetch_feed(feed_config)
             garment_articles.extend(articles)
 
-        # Sort by smart score
-        if garment_articles:
-            garment_articles.sort(key=calculate_article_score, reverse=True)
-            garment_articles = garment_articles[:max_per_category]
-            for a in garment_articles:
-                a.full_text = fetch_full_text(a.link)
-        result["garment"] = garment_articles
+        result["garment"] = _select_best_articles(garment_articles, max_per_category)
 
     if category in ("general", "all"):
         general_articles = []
@@ -309,13 +413,7 @@ def fetch_articles(
             articles = fetch_feed(feed_config)
             general_articles.extend(articles)
 
-        # Sort by smart score
-        if general_articles:
-            general_articles.sort(key=calculate_article_score, reverse=True)
-            general_articles = general_articles[:max_per_category]
-            for a in general_articles:
-                a.full_text = fetch_full_text(a.link)
-        result["general"] = general_articles
+        result["general"] = _select_best_articles(general_articles, max_per_category)
 
     total = sum(len(v) for v in result.values())
     logger.info(f"📊 Total articles fetched: {total}")

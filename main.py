@@ -32,13 +32,11 @@ from config import (
     EVENING_SEND_HOUR,
     EVENING_SEND_MINUTE,
     TIMEZONE,
-    USE_AI_SUMMARY,
     GMAIL_USER,
 )
 from crawler import fetch_articles
 from ai_processor import process_articles
 from email_sender import compose_email, send_email
-from pdf_generator import generate_pdf
 from tts_generator import generate_article_audio
 
 # ──────────────────────────────────────────────
@@ -69,12 +67,8 @@ def send_morning_email():
         if articles.get("general"):
             process_articles(articles["general"])
 
-            # Generate attachments
+            # Generate audio attachments
             attachments = []
-            pdf_path = generate_pdf(articles["general"], pdf_type="general")
-            if pdf_path:
-                attachments.append(pdf_path)
-                
             for i, article in enumerate(articles["general"], 1):
                 audio_path = generate_article_audio(article, i, category="general")
                 if audio_path:
@@ -99,12 +93,8 @@ def send_evening_email():
         if articles.get("garment"):
             process_articles(articles["garment"])
 
-            # Generate attachments
+            # Generate audio attachments
             attachments = []
-            pdf_path = generate_pdf(articles["garment"], pdf_type="garment")
-            if pdf_path:
-                attachments.append(pdf_path)
-                
             for i, article in enumerate(articles["garment"], 1):
                 audio_path = generate_article_audio(article, i, category="garment")
                 if audio_path:
@@ -133,21 +123,15 @@ def send_combined_email():
         if all_articles:
             process_articles(all_articles)
 
-            # Generate attachments for each category
+            # Generate audio attachments for each category
             attachments = []
             if articles.get("garment"):
-                pdf = generate_pdf(articles["garment"], pdf_type="garment")
-                if pdf:
-                    attachments.append(pdf)
                 for i, article in enumerate(articles["garment"], 1):
                     audio = generate_article_audio(article, i, category="garment")
                     if audio:
                         attachments.append(audio)
 
             if articles.get("general"):
-                pdf = generate_pdf(articles["general"], pdf_type="general")
-                if pdf:
-                    attachments.append(pdf)
                 for i, article in enumerate(articles["general"], 1):
                     audio = generate_article_audio(article, i, category="general")
                     if audio:
@@ -195,7 +179,6 @@ def run_scheduler():
     print("║   📚 Daily English Learning Email System            ║")
     print("║   ─────────────────────────────────────────────      ║")
     print(f"║   📧 Sending to: {GMAIL_USER:<35}  ║")
-    print(f"║   🤖 AI Summary: {'Enabled ✅' if USE_AI_SUMMARY else 'Disabled ❌':<35}  ║")
     print(f"║   ☀️  Morning:    {MORNING_SEND_HOUR:02d}:{MORNING_SEND_MINUTE:02d} ({TIMEZONE}){' '*(20-len(TIMEZONE))}  ║")
     print(f"║   🌙 Evening:    {EVENING_SEND_HOUR:02d}:{EVENING_SEND_MINUTE:02d} ({TIMEZONE}){' '*(20-len(TIMEZONE))}  ║")
     print("╚══════════════════════════════════════════════════════╝")

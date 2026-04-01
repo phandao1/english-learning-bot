@@ -17,12 +17,6 @@ _recipient_raw = os.getenv("RECIPIENT_EMAIL", GMAIL_USER)
 RECIPIENT_EMAILS = [e.strip() for e in _recipient_raw.split(",") if e.strip()]
 
 # ──────────────────────────────────────────────
-# Gemini AI Configuration (Optional)
-# ──────────────────────────────────────────────
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-USE_AI_SUMMARY = bool(GEMINI_API_KEY)
-
-# ──────────────────────────────────────────────
 # Schedule Configuration
 # ──────────────────────────────────────────────
 MORNING_SEND_HOUR = int(os.getenv("MORNING_SEND_HOUR", "7"))
@@ -45,51 +39,27 @@ GARMENT_FEEDS = [
         "icon": "🧵",
     },
     {
-        "name": "Just Style",
-        "url": "https://www.just-style.com/feed/",
-        "category": "garment_industry",
-        "icon": "👔",
-    },
-    {
-        "name": "Fashion United - Business",
-        "url": "https://fashionunited.com/rss/news",
-        "category": "garment_industry",
-        "icon": "👗",
-    },
-    {
         "name": "Textile World",
         "url": "https://www.textileworld.com/feed/",
         "category": "garment_industry",
         "icon": "🏭",
     },
     {
-        "name": "Fibre2Fashion",
-        "url": "https://www.fibre2fashion.com/rss/news.xml",
+        "name": "Sourcing Journal",
+        "url": "https://sourcingjournal.com/feed/",
         "category": "garment_industry",
-        "icon": "🧶",
+        "icon": "👔",
+    },
+    {
+        "name": "Fashion Dive",
+        "url": "https://www.fashiondive.com/feeds/news/",
+        "category": "garment_industry",
+        "icon": "👗",
     },
 ]
 
-# Tiếng Anh giao tiếp - General English Communication
+# Tiếng Anh giao tiếp - General English Communication (text articles only)
 GENERAL_ENGLISH_FEEDS = [
-    {
-        "name": "BBC Learning English",
-        "url": "https://www.bbc.co.uk/learningenglish/english/rss",
-        "category": "general_english",
-        "icon": "🇬🇧",
-    },
-    {
-        "name": "VOA Learning English",
-        "url": "https://learningenglish.voanews.com/api/z-mq$epiqt",
-        "category": "general_english",
-        "icon": "🇺🇸",
-    },
-    {
-        "name": "Breaking News English",
-        "url": "https://breakingnewsenglish.com/rss.xml",
-        "category": "general_english",
-        "icon": "📰",
-    },
     {
         "name": "Simple English News Daily",
         "url": "https://www.simpleenglishnews.com/feed",
@@ -101,6 +71,18 @@ GENERAL_ENGLISH_FEEDS = [
         "url": "https://www.newsinlevels.com/feed/",
         "category": "general_english",
         "icon": "📊",
+    },
+    {
+        "name": "Spotlight English",
+        "url": "https://spotlightenglish.com/feed/",
+        "category": "general_english",
+        "icon": "🌍",
+    },
+    {
+        "name": "Good News Network",
+        "url": "https://www.goodnewsnetwork.org/feed/",
+        "category": "general_english",
+        "icon": "😊",
     },
 ]
 
