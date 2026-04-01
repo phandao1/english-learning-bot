@@ -1,0 +1,44 @@
+name: Daily English Email Automation
+
+on:
+  schedule:
+    # Chạy tự động lúc 23:00 UTC (tương đương 06:00 sáng giờ Việt Nam) mỗi ngày
+    - cron: '0 23 * * *'
+    
+    # Chạy tự động lúc 10:00 UTC (tương đương 17:00 chiều giờ Việt Nam) mỗi ngày
+    - cron: '0 10 * * *'
+
+  # Cho phép kích hoạt chạy bằng tay (Manual trigger) trên giao diện Github
+  workflow_dispatch:
+
+jobs:
+  run-english-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # Sử dụng cache giúp Github Actions cài đặt siêu nhanh
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run the English Learning Crawler & Sender
+        env:
+          # Các biến môi trường này hệ thống sẽ tự đọc từ mục 'Secrets' của bạn
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+          USE_AI_SUMMARY: "True"
+          # Nếu có key Gemini, hệ thống sẽ chèn tự động, nếu không thì script có sẵn offline translator
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
+        run: |
+          # Chạy lệnh gửi ngay (không chạy qua scheduler chặn tiến trình)
+          python main.py --send-now

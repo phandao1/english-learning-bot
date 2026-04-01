@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  daily-english:
+    build: .
+    container_name: daily-english-learning
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
