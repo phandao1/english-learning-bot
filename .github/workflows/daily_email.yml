@@ -2,13 +2,12 @@ name: Daily English Email Automation
 
 on:
   schedule:
-    # Chạy tự động lúc 00:30 UTC (tương đương 07:30 sáng giờ Việt Nam) mỗi ngày
+    # 00:30 UTC = 07:30 sáng giờ Việt Nam
     - cron: '30 0 * * *'
-    
-    # Chạy tự động lúc 12:30 UTC (tương đương 19:30 tối giờ Việt Nam) mỗi ngày
+    # 12:30 UTC = 19:30 tối giờ Việt Nam
     - cron: '30 12 * * *'
 
-  # Cho phép kích hoạt chạy bằng tay (Manual trigger) trên giao diện Github
+  # Kích hoạt thủ công trên GitHub → gửi email tổng hợp ngay để test
   workflow_dispatch:
 
 jobs:
@@ -23,31 +22,33 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip' # Sử dụng cache giúp Github Actions cài đặt siêu nhanh
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run the Morning Email
-        if: github.event.schedule == '30 0 * * *' || github.event_name == 'workflow_dispatch'
+      - name: Run the Morning Email (07:30 VN)
+        if: github.event.schedule == '30 0 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-          USE_AI_SUMMARY: "True"
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
-        run: |
-          python main.py --morning
+        run: python main.py --morning
 
-      - name: Run the Evening Email
-        if: github.event.schedule == '30 12 * * *' || github.event_name == 'workflow_dispatch'
+      - name: Run the Evening Email (19:30 VN)
+        if: github.event.schedule == '30 12 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-          USE_AI_SUMMARY: "True"
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }} 
-        run: |
-          python main.py --evening
+        run: python main.py --evening
+
+      - name: Run Combined Email (Manual trigger / Test)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: python main.py --send-now
