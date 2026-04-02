@@ -2,12 +2,11 @@ name: Daily English Email Automation
 
 on:
   schedule:
-    # 00:30 UTC = 07:30 sáng giờ Việt Nam
-    - cron: '30 0 * * *'
+    # 03:00 UTC = 10:00 sáng giờ Việt Nam (Để test ngay bây giờ)
+    - cron: '0 3 * * *'
     # 12:30 UTC = 19:30 tối giờ Việt Nam
     - cron: '30 12 * * *'
 
-  # Kích hoạt thủ công trên GitHub → gửi email tổng hợp ngay để test
   workflow_dispatch:
 
 jobs:
@@ -23,23 +22,23 @@ jobs:
         with:
           python-version: '3.10'
           cache: 'pip'
-        env:
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run the Morning Email (07:30 VN)
-        if: github.event.schedule == '30 0 * * *'
+      - name: Run Morning/Test Email
+        # Nếu là lịch chạy 03:00 UTC (10h sáng) THÌ chạy lệnh morning
+        if: github.event.schedule == '0 3 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python main.py --morning
 
-      - name: Run the Evening Email (19:30 VN)
+      - name: Run Evening Email
+        # Nếu là lịch chạy 12:30 UTC (19:30 tối) THÌ chạy lệnh evening
         if: github.event.schedule == '30 12 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
@@ -47,7 +46,7 @@ jobs:
           RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
         run: python main.py --evening
 
-      - name: Run Combined Email (Manual trigger / Test)
+      - name: Run Manual (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
