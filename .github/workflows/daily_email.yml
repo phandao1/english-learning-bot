@@ -3,9 +3,9 @@ name: Daily English Email Automation
 on:
   schedule:
     # 22:00 UTC = 05:00 sáng giờ Việt Nam
-    - cron: '0 22 * * *'
+    - cron: '12 21 * * *'
     # 10:00 UTC = 17:00 chiều giờ Việt Nam
-    - cron: '0 10 * * *'
+    - cron: '0 11 * * *'
 
   workflow_dispatch:
 
@@ -30,7 +30,7 @@ jobs:
 
       - name: Run Morning/Test Email
         # Nếu là lịch chạy 22:00 UTC (5h sáng giờ VN) THÌ chạy lệnh morning
-        if: github.event.schedule == '0 22 * * *'
+        if: github.event.schedule == '12 21 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
@@ -39,7 +39,7 @@ jobs:
 
       - name: Run Evening Email
         # Nếu là lịch chạy 10:00 UTC (5h chiều giờ VN) THÌ chạy lệnh evening
-        if: github.event.schedule == '0 10 * * *'
+        if: github.event.schedule == '0 11 * * *'
         env:
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
